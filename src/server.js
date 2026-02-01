@@ -1288,7 +1288,7 @@ function handleTuiConnection(ws, req) {
 
   let ptyProcess;
   try {
-    ptyProcess = pty.spawn("openclaw", ["chat"], {
+    ptyProcess = pty.spawn("openclaw", ["tui"], {
       name: "xterm-256color",
       cols: 80,
       rows: 24,
