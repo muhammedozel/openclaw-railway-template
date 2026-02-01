@@ -335,6 +335,15 @@ async function startGateway() {
     console.error("[gateway] Doctor failed (continuing anyway):", err.message);
   }
 
+  // Set gateway.mode BEFORE starting gateway (required for gateway to start)
+  try {
+    console.log("[gateway] Setting gateway.mode=local...");
+    await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.mode", "local"]));
+    console.log("[gateway] gateway.mode set to local");
+  } catch (err) {
+    console.error("[gateway] Failed to set gateway.mode:", err.message);
+  }
+
   gatewayStarting = (async () => {
     const args = clawArgs([
       "gateway",

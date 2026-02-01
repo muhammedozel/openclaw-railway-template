@@ -92,7 +92,9 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /openclaw/dist/entry.js "$@"'
 COPY src ./src
 
 # Create data directories with proper permissions
-RUN mkdir -p /data/.openclaw /data/workspace
+RUN mkdir -p /data/.openclaw /data/workspace \
+    /data/.openclaw/agents/main/sessions \
+    /data/.openclaw/credentials
 
 # Create non-root user for security
 RUN groupadd -r openclaw && useradd -r -g openclaw -G linuxbrew -m openclaw
