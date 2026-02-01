@@ -1,4 +1,4 @@
-# CLAUDE.md - OpenClaw Railway Template v3.0
+# CLAUDE.md - OpenClaw Railway Template v3.1
 
 ## Project Overview
 
@@ -18,7 +18,7 @@ Railway deployment template for OpenClaw with source build, setup wizard, Web TU
 ├── railway.toml            # Railway deployment config
 ├── package.json            # Dependencies (express, http-proxy, node-pty, ws, tar)
 ├── src/
-│   ├── server.js           # Main Express server (~1170 lines)
+│   ├── server.js           # Main Express server (~1370 lines)
 │   └── public/
 │       ├── setup.html      # Setup wizard with tabs (Actions, Backup, Console, Config)
 │       ├── loading.html    # Gateway loading page
@@ -63,6 +63,14 @@ Railway deployment template for OpenClaw with source build, setup wizard, Web TU
 - Run safe commands from browser
 - Gateway control (start/stop/restart)
 - OpenClaw commands (status, health, doctor, logs)
+
+### OAuth Support (New in v3.1)
+- **Device Code Flow**: Browser-based OAuth with URL + code display
+- **Token Paste**: Manual token input for providers supporting it
+- **Local OAuth + Import**: Run OAuth locally, export, upload backup
+- Supported OAuth providers: Claude CLI, OpenAI Codex, ChatGPT, Gemini CLI, Antigravity, Qwen, GitHub Copilot
+- 5-minute timeout with automatic cleanup
+- Real-time polling for authentication status
 
 ### Security
 - Rate limiting (50 req/min per IP)
@@ -113,6 +121,12 @@ pnpm dev           # Start with file watching
 - `POST /setup/api/console` - Run debug command
 - `GET /setup/export` - Download backup
 - `POST /setup/import` - Upload backup
+
+### OAuth (auth required)
+- `POST /setup/api/oauth/start` - Start Device Code Flow
+- `GET /setup/api/oauth/poll/:pollId` - Poll OAuth status
+- `POST /setup/api/oauth/cancel/:pollId` - Cancel OAuth session
+- `POST /setup/api/oauth/paste` - Paste token directly
 
 ### Health (no auth)
 - `GET /setup/healthz` - Detailed health check

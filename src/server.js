@@ -756,6 +756,269 @@ app.post("/setup/api/console", requireSetupAuth, async (req, res) => {
 });
 
 // ============================================================================
+// OAuth Routes
+// ============================================================================
+
+// Store active OAuth sessions
+const oauthSessions = new Map();
+
+// Provider command mappings for Device Code Flow
+const OAUTH_PROVIDER_COMMANDS = {
+  "claude-cli": { args: ["models", "auth", "login", "--provider", "claude-cli"], name: "Claude CLI" },
+  "openai-codex": { args: ["models", "auth", "login", "--provider", "openai-codex"], name: "OpenAI Codex" },
+  "chatgpt-oauth": { args: ["models", "auth", "login", "--provider", "chatgpt"], name: "ChatGPT" },
+  "gemini-cli": { args: ["models", "auth", "login", "--provider", "gemini-cli"], name: "Gemini CLI" },
+  "antigravity-oauth": { args: ["models", "auth", "login", "--provider", "antigravity"], name: "Antigravity" },
+  "qwen-oauth": { args: ["models", "auth", "login", "--provider", "qwen"], name: "Qwen" },
+  "copilot-oauth": { args: ["models", "auth", "login", "--provider", "copilot"], name: "GitHub Copilot" },
+};
+
+// Provider command mappings for Token Paste
+const TOKEN_PASTE_PROVIDERS = {
+  "anthropic-token": { args: ["models", "auth", "paste-token", "--provider", "anthropic"], envKey: "ANTHROPIC_AUTH_TOKEN" },
+};
+
+// Start Device Code Flow
+app.post("/setup/api/oauth/start", requireSetupAuth, async (req, res) => {
+  const { provider } = req.body;
+
+  if (!provider || !OAUTH_PROVIDER_COMMANDS[provider]) {
+    return res.status(400).json({
+      ok: false,
+      error: `Invalid OAuth provider: ${provider}. Supported: ${Object.keys(OAUTH_PROVIDER_COMMANDS).join(", ")}`
+    });
+  }
+
+  const pollId = crypto.randomBytes(16).toString("hex");
+  const providerConfig = OAUTH_PROVIDER_COMMANDS[provider];
+
+  // Create session entry
+  const session = {
+    provider,
+    status: "pending",
+    url: null,
+    code: null,
+    error: null,
+    startedAt: Date.now(),
+    proc: null,
+    output: "",
+  };
+  oauthSessions.set(pollId, session);
+
+  // Cleanup old sessions (older than 10 minutes)
+  const TEN_MINUTES = 10 * 60 * 1000;
+  for (const [id, sess] of oauthSessions) {
+    if (Date.now() - sess.startedAt > TEN_MINUTES) {
+      if (sess.proc && !sess.proc.killed) {
+        sess.proc.kill("SIGTERM");
+      }
+      oauthSessions.delete(id);
+    }
+  }
+
+  // Spawn OpenClaw auth process
+  const args = clawArgs(providerConfig.args);
+  debug(`[oauth] Starting: ${OPENCLAW_NODE} ${args.join(" ")}`);
+
+  const proc = childProcess.spawn(OPENCLAW_NODE, args, {
+    env: {
+      ...process.env,
+      OPENCLAW_STATE_DIR: STATE_DIR,
+      OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  session.proc = proc;
+
+  // Capture output and parse for URL/code
+  proc.stdout.on("data", (data) => {
+    const text = data.toString();
+    session.output += text;
+    debug(`[oauth] stdout: ${text}`);
+
+    // Try to extract URL and code from output
+    // Common patterns: "Visit https://... and enter code: XXXX" or "Open URL: https://..."
+    const urlMatch = text.match(/https?:\/\/[^\s]+/);
+    const codeMatch = text.match(/code[:\s]+([A-Z0-9-]{4,})/i) || text.match(/([A-Z0-9]{6,8})/);
+
+    if (urlMatch) {
+      session.url = urlMatch[0].replace(/[,.)]+$/, ""); // Remove trailing punctuation
+    }
+    if (codeMatch && codeMatch[1]) {
+      session.code = codeMatch[1];
+    }
+  });
+
+  proc.stderr.on("data", (data) => {
+    const text = data.toString();
+    session.output += text;
+    debug(`[oauth] stderr: ${text}`);
+
+    // Also check stderr for URL/code (some CLIs output there)
+    const urlMatch = text.match(/https?:\/\/[^\s]+/);
+    const codeMatch = text.match(/code[:\s]+([A-Z0-9-]{4,})/i) || text.match(/([A-Z0-9]{6,8})/);
+
+    if (urlMatch) {
+      session.url = urlMatch[0].replace(/[,.)]+$/, "");
+    }
+    if (codeMatch && codeMatch[1]) {
+      session.code = codeMatch[1];
+    }
+  });
+
+  proc.on("close", (code) => {
+    debug(`[oauth] Process exited with code ${code}`);
+    if (code === 0) {
+      session.status = "success";
+    } else if (session.status === "pending") {
+      session.status = "failed";
+      session.error = `Authentication failed (exit code ${code})`;
+    }
+  });
+
+  proc.on("error", (err) => {
+    debug(`[oauth] Process error: ${err.message}`);
+    session.status = "failed";
+    session.error = err.message;
+  });
+
+  // Wait briefly for initial output (URL/code)
+  await sleep(2000);
+
+  res.json({
+    ok: true,
+    pollId,
+    provider,
+    providerName: providerConfig.name,
+    url: session.url,
+    code: session.code,
+    status: session.status,
+  });
+});
+
+// Poll OAuth status
+app.get("/setup/api/oauth/poll/:pollId", requireSetupAuth, async (req, res) => {
+  const { pollId } = req.params;
+  const session = oauthSessions.get(pollId);
+
+  if (!session) {
+    return res.status(404).json({ ok: false, error: "OAuth session not found or expired" });
+  }
+
+  // Check for timeout (5 minutes)
+  const FIVE_MINUTES = 5 * 60 * 1000;
+  if (Date.now() - session.startedAt > FIVE_MINUTES && session.status === "pending") {
+    session.status = "timeout";
+    session.error = "Authentication timed out. Please try again.";
+    if (session.proc && !session.proc.killed) {
+      session.proc.kill("SIGTERM");
+    }
+  }
+
+  res.json({
+    ok: true,
+    status: session.status,
+    url: session.url,
+    code: session.code,
+    error: session.error,
+    output: session.output.slice(-500), // Last 500 chars for debugging
+  });
+
+  // Clean up completed/failed sessions after response
+  if (session.status !== "pending") {
+    setTimeout(() => oauthSessions.delete(pollId), 60000); // Keep for 1 minute after completion
+  }
+});
+
+// Cancel OAuth session
+app.post("/setup/api/oauth/cancel/:pollId", requireSetupAuth, async (req, res) => {
+  const { pollId } = req.params;
+  const session = oauthSessions.get(pollId);
+
+  if (!session) {
+    return res.status(404).json({ ok: false, error: "OAuth session not found" });
+  }
+
+  if (session.proc && !session.proc.killed) {
+    session.proc.kill("SIGTERM");
+  }
+  session.status = "cancelled";
+  oauthSessions.delete(pollId);
+
+  res.json({ ok: true, message: "OAuth session cancelled" });
+});
+
+// Paste Token (for providers that support direct token input)
+app.post("/setup/api/oauth/paste", requireSetupAuth, async (req, res) => {
+  const { provider, token } = req.body;
+
+  if (!provider) {
+    return res.status(400).json({ ok: false, error: "Missing provider" });
+  }
+
+  if (!token || token.trim().length === 0) {
+    return res.status(400).json({ ok: false, error: "Missing token" });
+  }
+
+  const providerConfig = TOKEN_PASTE_PROVIDERS[provider];
+
+  if (providerConfig) {
+    // Use OpenClaw paste-token command
+    const args = clawArgs(providerConfig.args);
+    debug(`[oauth] Pasting token for ${provider}`);
+
+    const proc = childProcess.spawn(OPENCLAW_NODE, args, {
+      env: {
+        ...process.env,
+        OPENCLAW_STATE_DIR: STATE_DIR,
+        OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    // Write token to stdin
+    proc.stdin.write(token.trim());
+    proc.stdin.end();
+
+    let output = "";
+    proc.stdout.on("data", (d) => (output += d.toString()));
+    proc.stderr.on("data", (d) => (output += d.toString()));
+
+    await new Promise((resolve) => {
+      proc.on("close", resolve);
+      proc.on("error", resolve);
+    });
+
+    // Also set environment variable
+    if (providerConfig.envKey) {
+      process.env[providerConfig.envKey] = token.trim();
+    }
+
+    res.json({ ok: true, message: "Token saved successfully", output });
+  } else {
+    // For API key providers, find the envKey from AUTH_GROUPS
+    let envKey = null;
+    for (const group of Object.values(AUTH_GROUPS)) {
+      const found = group.providers.find((p) => p.id === provider);
+      if (found && found.envKey) {
+        envKey = found.envKey;
+        break;
+      }
+    }
+
+    if (!envKey) {
+      return res.status(400).json({ ok: false, error: `Unknown provider: ${provider}` });
+    }
+
+    // Set environment variable
+    process.env[envKey] = token.trim();
+
+    res.json({ ok: true, message: "Token/API key saved to environment" });
+  }
+});
+
+// ============================================================================
 // Export/Import Routes
 // ============================================================================
 

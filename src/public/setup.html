@@ -58,6 +58,113 @@
       font-size: 12px;
       margin-left: 8px;
     }
+    /* OAuth Styles */
+    .oauth-methods {
+      margin-top: 16px;
+    }
+    .oauth-method {
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .oauth-method h4 {
+      margin: 0 0 12px 0;
+      font-size: 14px;
+      color: #fff;
+    }
+    .oauth-method .btn {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .device-code-display {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 6px;
+      padding: 16px;
+      text-align: center;
+      margin-top: 12px;
+    }
+    .device-code-display .url-link {
+      color: #ff6b35;
+      word-break: break-all;
+      font-size: 14px;
+    }
+    .device-code-display .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 24px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      color: #fff;
+      background: rgba(255, 107, 53, 0.2);
+      padding: 12px 20px;
+      border-radius: 6px;
+      display: inline-block;
+      margin: 12px 0;
+    }
+    .device-code-display .status {
+      font-size: 13px;
+      color: #888;
+      margin-top: 8px;
+    }
+    .device-code-display .status.success {
+      color: #4ade80;
+    }
+    .device-code-display .status.error {
+      color: #f87171;
+    }
+    .poll-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ff6b35;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .token-paste-input {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .token-paste-input input {
+      flex: 1;
+    }
+    .oauth-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .oauth-tab-btn {
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #888;
+      cursor: pointer;
+      font-size: 12px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .oauth-tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .oauth-tab-btn.active {
+      color: #ff6b35;
+      background: rgba(255, 107, 53, 0.1);
+      border-color: rgba(255, 107, 53, 0.3);
+    }
+    .oauth-tab-content {
+      display: none;
+    }
+    .oauth-tab-content.active {
+      display: block;
+    }
     .file-input-wrapper {
       position: relative;
       overflow: hidden;
@@ -243,11 +350,81 @@
         </div>
 
         <div class="form-group" id="oauthButtonGroup" style="display: none;">
-          <button type="button" class="btn btn-oauth" onclick="startOAuth()">
-            <span class="btn-icon">&#x1F511;</span>
-            <span id="oauthButtonText">Login with OAuth</span>
-          </button>
-          <p class="help-text">This will open a new window for authentication</p>
+          <!-- OAuth Method Tabs -->
+          <div class="oauth-tabs">
+            <button type="button" class="oauth-tab-btn active" onclick="switchOAuthTab('device')">Browser Login</button>
+            <button type="button" class="oauth-tab-btn" onclick="switchOAuthTab('token')">Paste Token</button>
+            <button type="button" class="oauth-tab-btn" onclick="switchOAuthTab('import')">Import Backup</button>
+          </div>
+
+          <!-- Device Code Flow Tab -->
+          <div id="oauth-tab-device" class="oauth-tab-content active">
+            <div class="oauth-method">
+              <h4>&#x1F310; Browser Login (Recommended)</h4>
+              <p class="help-text" style="margin-bottom: 12px;">
+                Click the button below to start the authentication flow. You'll receive a URL and code to complete login in your browser.
+              </p>
+              <button type="button" class="btn btn-oauth" id="startOAuthBtn" onclick="startDeviceFlow()">
+                <span class="btn-icon">&#x1F511;</span>
+                <span id="oauthButtonText">Login with OAuth</span>
+              </button>
+
+              <!-- Device Code Display (shown after starting flow) -->
+              <div id="deviceCodeDisplay" class="device-code-display" style="display: none;">
+                <p>Open this URL in your browser:</p>
+                <p><a id="deviceUrl" href="#" target="_blank" class="url-link">Loading...</a></p>
+                <p style="margin-top: 16px;">Enter this code:</p>
+                <div class="code" id="deviceCode">------</div>
+                <p class="status" id="deviceStatus">
+                  <span class="poll-spinner"></span>
+                  Waiting for authentication...
+                </p>
+                <button type="button" class="btn btn-secondary" onclick="cancelOAuth()" style="margin-top: 12px;">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Token Paste Tab -->
+          <div id="oauth-tab-token" class="oauth-tab-content">
+            <div class="oauth-method">
+              <h4>&#x1F4CB; Paste Token</h4>
+              <p class="help-text" style="margin-bottom: 12px;">
+                If you have an auth token from the provider's console, paste it below.
+              </p>
+              <div class="token-paste-input">
+                <input type="password" id="pasteTokenInput" placeholder="Paste your token here...">
+                <button type="button" class="btn btn-secondary" onclick="pasteToken()">
+                  <span class="btn-icon">&#x2714;</span> Submit
+                </button>
+              </div>
+              <p class="help-text" id="tokenPasteHelp" style="margin-top: 8px;"></p>
+            </div>
+          </div>
+
+          <!-- Import Backup Tab -->
+          <div id="oauth-tab-import" class="oauth-tab-content">
+            <div class="oauth-method">
+              <h4>&#x1F4E6; Import from Local</h4>
+              <p class="help-text" style="margin-bottom: 12px;">
+                Run the OAuth flow locally on your machine, export the configuration, and upload it here.
+              </p>
+              <ol class="help-text" style="margin-left: 16px; margin-bottom: 12px;">
+                <li>Install OpenClaw locally: <code>npm i -g openclaw</code></li>
+                <li>Run: <code>openclaw models auth login</code></li>
+                <li>Export your config: <code>tar -czf backup.tar.gz ~/.openclaw</code></li>
+                <li>Upload the backup file below</li>
+              </ol>
+              <div class="file-input-wrapper" style="width: 100%;">
+                <button class="btn btn-secondary" style="width: 100%;">
+                  <span class="btn-icon">&#x1F4E4;</span> Upload OAuth Backup
+                </button>
+                <input type="file" id="oauthImportFile" accept=".tar.gz,application/gzip" onchange="handleOAuthImport(this)">
+              </div>
+              <div id="oauthImportOutput" class="code-output hidden" style="margin-top: 12px;"></div>
+            </div>
+          </div>
         </div>
 
         <div class="divider"><span>Model Selection</span></div>
@@ -465,11 +642,34 @@
       }
 
       const type = selectedOption.dataset.type;
+      const providerId = selectedOption.value;
 
       if (type === 'oauth') {
         inputGroup.style.display = 'none';
         oauthGroup.style.display = 'block';
-        document.getElementById('oauthButtonText').textContent = `Login with ${selectedOption.textContent}`;
+
+        // Update OAuth button text
+        const oauthBtnText = document.getElementById('oauthButtonText');
+        if (oauthBtnText) {
+          oauthBtnText.textContent = `Login with ${selectedOption.textContent}`;
+        }
+
+        // Update token paste help text based on provider
+        const tokenPasteHelp = document.getElementById('tokenPasteHelp');
+        if (tokenPasteHelp) {
+          if (providerId === 'claude-cli') {
+            tokenPasteHelp.innerHTML = 'Get your session token from <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> (Developer Console → Session)';
+          } else if (providerId.includes('openai') || providerId.includes('chatgpt')) {
+            tokenPasteHelp.innerHTML = 'Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>';
+          } else if (providerId.includes('gemini')) {
+            tokenPasteHelp.innerHTML = 'Get your API key from <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>';
+          } else {
+            tokenPasteHelp.textContent = 'Paste your authentication token from the provider\'s console.';
+          }
+        }
+
+        // Reset OAuth UI when switching providers
+        resetOAuthUI();
       } else {
         oauthGroup.style.display = 'none';
         inputGroup.style.display = 'block';
@@ -488,9 +688,10 @@
           authLabel.textContent = 'Credential';
         }
 
-        const providerId = selectedOption.value;
         if (providerId === 'anthropic-api') {
           authHelp.innerHTML = 'Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>';
+        } else if (providerId === 'anthropic-token') {
+          authHelp.innerHTML = 'Get your session token from <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>';
         } else if (providerId === 'openai-api') {
           authHelp.innerHTML = 'Get your key at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>';
         } else if (providerId === 'gemini-api') {
@@ -503,9 +704,235 @@
       }
     }
 
-    function startOAuth() {
+    let currentPollId = null;
+    let pollInterval = null;
+
+    function switchOAuthTab(tabName) {
+      document.querySelectorAll('.oauth-tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.oauth-tab-content').forEach(content => content.classList.remove('active'));
+
+      document.querySelector(`[onclick="switchOAuthTab('${tabName}')"]`).classList.add('active');
+      document.getElementById(`oauth-tab-${tabName}`).classList.add('active');
+    }
+
+    async function startDeviceFlow() {
       const provider = document.getElementById('authProvider').value;
-      showAlert('OAuth flow is not yet implemented for this provider. Please use API key authentication.', 'warning');
+      const btn = document.getElementById('startOAuthBtn');
+      const display = document.getElementById('deviceCodeDisplay');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="poll-spinner"></span> Starting...';
+
+      try {
+        const response = await fetch('/setup/api/oauth/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider })
+        });
+
+        const data = await response.json();
+
+        if (!data.ok) {
+          showAlert(data.error || 'Failed to start OAuth flow', 'error');
+          btn.disabled = false;
+          btn.innerHTML = '<span class="btn-icon">&#x1F511;</span> <span>Login with OAuth</span>';
+          return;
+        }
+
+        currentPollId = data.pollId;
+
+        // Show device code display
+        display.style.display = 'block';
+        btn.style.display = 'none';
+
+        const urlEl = document.getElementById('deviceUrl');
+        const codeEl = document.getElementById('deviceCode');
+        const statusEl = document.getElementById('deviceStatus');
+
+        if (data.url) {
+          urlEl.href = data.url;
+          urlEl.textContent = data.url;
+        } else {
+          urlEl.textContent = 'Waiting for URL...';
+          urlEl.removeAttribute('href');
+        }
+
+        if (data.code) {
+          codeEl.textContent = data.code;
+        } else {
+          codeEl.textContent = '------';
+        }
+
+        statusEl.innerHTML = '<span class="poll-spinner"></span> Waiting for authentication...';
+        statusEl.className = 'status';
+
+        // Start polling
+        startPolling();
+
+      } catch (error) {
+        showAlert('Error: ' + error.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">&#x1F511;</span> <span>Login with OAuth</span>';
+      }
+    }
+
+    function startPolling() {
+      if (pollInterval) clearInterval(pollInterval);
+
+      pollInterval = setInterval(async () => {
+        if (!currentPollId) {
+          clearInterval(pollInterval);
+          return;
+        }
+
+        try {
+          const response = await fetch(`/setup/api/oauth/poll/${currentPollId}`);
+          const data = await response.json();
+
+          const urlEl = document.getElementById('deviceUrl');
+          const codeEl = document.getElementById('deviceCode');
+          const statusEl = document.getElementById('deviceStatus');
+
+          // Update URL and code if available
+          if (data.url && urlEl.textContent === 'Waiting for URL...') {
+            urlEl.href = data.url;
+            urlEl.textContent = data.url;
+          }
+
+          if (data.code && codeEl.textContent === '------') {
+            codeEl.textContent = data.code;
+          }
+
+          // Check status
+          if (data.status === 'success') {
+            clearInterval(pollInterval);
+            statusEl.innerHTML = '&#x2705; Authentication successful!';
+            statusEl.className = 'status success';
+            showAlert('OAuth authentication successful! You can now complete setup.', 'success');
+
+            // Update form to indicate OAuth was successful
+            document.getElementById('authValue').value = 'oauth-complete';
+
+            // Reset button after a delay
+            setTimeout(() => {
+              resetOAuthUI();
+            }, 3000);
+
+          } else if (data.status === 'failed' || data.status === 'timeout' || data.status === 'cancelled') {
+            clearInterval(pollInterval);
+            statusEl.innerHTML = '&#x274C; ' + (data.error || 'Authentication failed');
+            statusEl.className = 'status error';
+            showAlert(data.error || 'OAuth authentication failed', 'error');
+
+            setTimeout(() => {
+              resetOAuthUI();
+            }, 3000);
+          }
+
+        } catch (error) {
+          console.error('Polling error:', error);
+        }
+      }, 2000); // Poll every 2 seconds
+    }
+
+    async function cancelOAuth() {
+      if (currentPollId) {
+        try {
+          await fetch(`/setup/api/oauth/cancel/${currentPollId}`, { method: 'POST' });
+        } catch (e) {
+          console.error('Cancel error:', e);
+        }
+      }
+
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+
+      currentPollId = null;
+      resetOAuthUI();
+    }
+
+    function resetOAuthUI() {
+      const btn = document.getElementById('startOAuthBtn');
+      const display = document.getElementById('deviceCodeDisplay');
+
+      btn.disabled = false;
+      btn.innerHTML = '<span class="btn-icon">&#x1F511;</span> <span id="oauthButtonText">Login with OAuth</span>';
+      btn.style.display = 'block';
+      display.style.display = 'none';
+
+      currentPollId = null;
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
+    async function pasteToken() {
+      const provider = document.getElementById('authProvider').value;
+      const token = document.getElementById('pasteTokenInput').value.trim();
+
+      if (!token) {
+        showAlert('Please enter a token', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch('/setup/api/oauth/paste', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider, token })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          showAlert('Token saved successfully!', 'success');
+          document.getElementById('authValue').value = token;
+          document.getElementById('pasteTokenInput').value = '';
+        } else {
+          showAlert(data.error || 'Failed to save token', 'error');
+        }
+      } catch (error) {
+        showAlert('Error: ' + error.message, 'error');
+      }
+    }
+
+    async function handleOAuthImport(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const outputEl = document.getElementById('oauthImportOutput');
+      outputEl.classList.remove('hidden');
+      outputEl.textContent = 'Uploading and importing OAuth backup...';
+
+      try {
+        const response = await fetch('/setup/import', {
+          method: 'POST',
+          body: file,
+          headers: {
+            'Content-Type': 'application/gzip'
+          }
+        });
+
+        const text = await response.text();
+        outputEl.textContent = text;
+
+        if (response.ok) {
+          showAlert('OAuth backup imported successfully! You can now complete setup.', 'success');
+          document.getElementById('authValue').value = 'oauth-imported';
+        }
+      } catch (error) {
+        outputEl.textContent = 'Error: ' + error.message;
+      }
+
+      input.value = '';
+    }
+
+    // Legacy function for backwards compatibility
+    function startOAuth() {
+      startDeviceFlow();
     }
 
     async function runDoctor() {
