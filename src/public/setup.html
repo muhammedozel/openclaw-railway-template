@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Setup</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">&#x1F99E;</div>
+      <h1>OpenClaw Setup</h1>
+      <p class="subtitle">Configure your personal AI assistant</p>
+    </div>
+
+    <div id="alert" class="alert hidden"></div>
+
+    <!-- Status Card (shown when already configured) -->
+    <div id="statusCard" class="card hidden">
+      <h2 class="section-title">
+        <span class="icon">&#x2705;</span>
+        System Status
+      </h2>
+      <div class="status-grid">
+        <div class="status-item">
+          <span class="status-label">Setup</span>
+          <span id="statusSetup" class="status-value">-</span>
+        </div>
+        <div class="status-item">
+          <span class="status-label">Gateway</span>
+          <span id="statusGateway" class="status-value">-</span>
+        </div>
+      </div>
+      <div class="button-group">
+        <button type="button" class="btn btn-secondary" onclick="runDoctor()">
+          <span class="btn-icon">&#x1FA7A;</span> Run Doctor
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="restartGateway()">
+          <span class="btn-icon">&#x1F504;</span> Restart Gateway
+        </button>
+        <button type="button" class="btn btn-danger" onclick="resetSetup()">
+          <span class="btn-icon">&#x1F5D1;</span> Reset Configuration
+        </button>
+      </div>
+      <div id="doctorOutput" class="code-output hidden"></div>
+    </div>
+
+    <form id="setupForm">
+      <!-- AI Provider -->
+      <div class="card">
+        <h2 class="section-title">
+          <span class="icon">&#x1F916;</span>
+          AI Provider
+        </h2>
+
+        <div class="form-group">
+          <label for="authGroup">Provider Group</label>
+          <select id="authGroup" name="authGroup" onchange="updateAuthProviders()">
+            <option value="">Select a provider...</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="authProviderGroup" style="display: none;">
+          <label for="authProvider">Authentication Method</label>
+          <select id="authProvider" name="authProvider" onchange="updateAuthInput()">
+            <option value="">Select auth method...</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="authInputGroup" style="display: none;">
+          <label for="authValue" id="authValueLabel">API Key / Token</label>
+          <input type="password" id="authValue" name="authValue" placeholder="">
+          <p class="help-text" id="authHelp"></p>
+        </div>
+
+        <div class="form-group" id="oauthButtonGroup" style="display: none;">
+          <button type="button" class="btn btn-oauth" onclick="startOAuth()">
+            <span class="btn-icon">&#x1F511;</span>
+            <span id="oauthButtonText">Login with OAuth</span>
+          </button>
+          <p class="help-text">This will open a new window for authentication</p>
+        </div>
+
+        <div class="divider"><span>Model Selection</span></div>
+
+        <div class="form-group">
+          <label for="model">Model</label>
+          <select id="model" name="model">
+            <option value="anthropic/claude-sonnet-4-5">Claude Sonnet 4.5 (Recommended)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Channels -->
+      <div class="card">
+        <h2 class="section-title">
+          <span class="icon">&#x1F4AC;</span>
+          Channels <span class="label-hint">(optional)</span>
+        </h2>
+
+        <div class="form-group">
+          <label for="telegramToken">
+            <span class="channel-icon">&#x1F4E8;</span>
+            Telegram Bot Token
+          </label>
+          <input type="password" id="telegramToken" name="telegramToken" placeholder="123456789:AA...">
+          <p class="help-text">Create a bot with <a href="https://t.me/BotFather" target="_blank">@BotFather</a> on Telegram</p>
+        </div>
+
+        <div class="form-group">
+          <label for="discordToken">
+            <span class="channel-icon">&#x1F3AE;</span>
+            Discord Bot Token
+          </label>
+          <input type="password" id="discordToken" name="discordToken" placeholder="...">
+          <p class="help-text">Get from <a href="https://discord.com/developers/applications" target="_blank">Discord Developer Portal</a></p>
+        </div>
+
+        <div class="form-group">
+          <label for="slackToken">
+            <span class="channel-icon">&#x1F4BC;</span>
+            Slack Bot Token
+          </label>
+          <input type="password" id="slackToken" name="slackToken" placeholder="xoxb-...">
+          <p class="help-text">Get from <a href="https://api.slack.com/apps" target="_blank">Slack API Portal</a></p>
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" class="btn btn-primary" id="submitBtn">
+        <span id="btnText">Start OpenClaw &#x1F680;</span>
+        <span class="loading" id="btnLoading">
+          <span class="spinner"></span>
+          Setting up...
+        </span>
+      </button>
+    </form>
+
+    <!-- Footer Links -->
+    <div class="footer">
+      <a href="/tui" class="footer-link">
+        <span class="footer-icon">&#x1F4BB;</span>
+        Web Terminal
+      </a>
+      <a href="/setup/healthz" class="footer-link" target="_blank">
+        <span class="footer-icon">&#x2764;</span>
+        Health Check
+      </a>
+      <a href="https://github.com/anthropics/openclaw" class="footer-link" target="_blank">
+        <span class="footer-icon">&#x1F4DA;</span>
+        Documentation
+      </a>
+    </div>
+  </div>
+
+  <script>
+    let authGroups = {};
+    let models = [];
+    let isConfigured = false;
+
+    const form = document.getElementById('setupForm');
+    const alertEl = document.getElementById('alert');
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const btnLoading = document.getElementById('btnLoading');
+    const statusCard = document.getElementById('statusCard');
+
+    function showAlert(message, type) {
+      alertEl.textContent = message;
+      alertEl.className = `alert alert-${type}`;
+      alertEl.classList.remove('hidden');
+      alertEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function hideAlert() {
+      alertEl.classList.add('hidden');
+    }
+
+    function setLoading(loading) {
+      submitBtn.disabled = loading;
+      btnText.classList.toggle('hidden', loading);
+      btnLoading.classList.toggle('active', loading);
+    }
+
+    async function fetchStatus() {
+      try {
+        const response = await fetch('/setup/api/status');
+        const data = await response.json();
+
+        authGroups = data.authGroups || {};
+        models = data.models || [];
+        isConfigured = data.setupComplete;
+
+        // Populate auth groups dropdown
+        const authGroupSelect = document.getElementById('authGroup');
+        authGroupSelect.innerHTML = '<option value="">Select a provider...</option>';
+        for (const [key, group] of Object.entries(authGroups)) {
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = group.name;
+          authGroupSelect.appendChild(option);
+        }
+
+        // Populate models dropdown
+        const modelSelect = document.getElementById('model');
+        modelSelect.innerHTML = '';
+        for (const model of models) {
+          const option = document.createElement('option');
+          option.value = model.value;
+          option.textContent = model.label;
+          modelSelect.appendChild(option);
+        }
+
+        // Show status card if configured
+        if (isConfigured) {
+          statusCard.classList.remove('hidden');
+          document.getElementById('statusSetup').textContent = 'Complete';
+          document.getElementById('statusSetup').className = 'status-value status-ok';
+          document.getElementById('statusGateway').textContent = data.gatewayReady ? 'Running' : 'Starting...';
+          document.getElementById('statusGateway').className = `status-value ${data.gatewayReady ? 'status-ok' : 'status-warning'}`;
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Failed to fetch status:', error);
+        showAlert('Failed to load configuration. Please refresh the page.', 'error');
+        return null;
+      }
+    }
+
+    function updateAuthProviders() {
+      const groupKey = document.getElementById('authGroup').value;
+      const providerGroup = document.getElementById('authProviderGroup');
+      const providerSelect = document.getElementById('authProvider');
+
+      if (!groupKey || !authGroups[groupKey]) {
+        providerGroup.style.display = 'none';
+        document.getElementById('authInputGroup').style.display = 'none';
+        document.getElementById('oauthButtonGroup').style.display = 'none';
+        return;
+      }
+
+      const group = authGroups[groupKey];
+      providerSelect.innerHTML = '<option value="">Select auth method...</option>';
+
+      for (const provider of group.providers) {
+        const option = document.createElement('option');
+        option.value = provider.id;
+        option.textContent = provider.name;
+        option.dataset.type = provider.type;
+        option.dataset.envKey = provider.envKey || '';
+        option.dataset.placeholder = provider.placeholder || '';
+        option.dataset.description = provider.description || '';
+        providerSelect.appendChild(option);
+      }
+
+      providerGroup.style.display = 'block';
+      updateAuthInput();
+    }
+
+    function updateAuthInput() {
+      const providerSelect = document.getElementById('authProvider');
+      const selectedOption = providerSelect.selectedOptions[0];
+      const inputGroup = document.getElementById('authInputGroup');
+      const oauthGroup = document.getElementById('oauthButtonGroup');
+
+      if (!selectedOption || !selectedOption.value) {
+        inputGroup.style.display = 'none';
+        oauthGroup.style.display = 'none';
+        return;
+      }
+
+      const type = selectedOption.dataset.type;
+
+      if (type === 'oauth') {
+        inputGroup.style.display = 'none';
+        oauthGroup.style.display = 'block';
+        document.getElementById('oauthButtonText').textContent = `Login with ${selectedOption.textContent}`;
+      } else {
+        oauthGroup.style.display = 'none';
+        inputGroup.style.display = 'block';
+
+        const authValue = document.getElementById('authValue');
+        const authLabel = document.getElementById('authValueLabel');
+        const authHelp = document.getElementById('authHelp');
+
+        authValue.placeholder = selectedOption.dataset.placeholder || '';
+
+        if (type === 'api-key') {
+          authLabel.textContent = 'API Key';
+        } else if (type === 'token') {
+          authLabel.textContent = 'Token';
+        } else {
+          authLabel.textContent = 'Credential';
+        }
+
+        // Set help text based on provider
+        const providerId = selectedOption.value;
+        if (providerId === 'anthropic-api') {
+          authHelp.innerHTML = 'Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>';
+        } else if (providerId === 'openai-api') {
+          authHelp.innerHTML = 'Get your key at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a>';
+        } else if (providerId === 'gemini-api') {
+          authHelp.innerHTML = 'Get your key at <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>';
+        } else if (providerId === 'openrouter-api') {
+          authHelp.innerHTML = 'Get your key at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai</a>';
+        } else {
+          authHelp.textContent = selectedOption.dataset.description || '';
+        }
+      }
+    }
+
+    function startOAuth() {
+      const provider = document.getElementById('authProvider').value;
+      showAlert('OAuth flow is not yet implemented for this provider. Please use API key authentication.', 'warning');
+      // TODO: Implement OAuth flow
+      // window.open(`/setup/api/oauth/start?provider=${provider}`, '_blank', 'width=600,height=700');
+    }
+
+    async function runDoctor() {
+      const outputEl = document.getElementById('doctorOutput');
+      outputEl.classList.remove('hidden');
+      outputEl.textContent = 'Running doctor command...';
+
+      try {
+        const response = await fetch('/setup/api/doctor', { method: 'POST' });
+        const data = await response.json();
+        outputEl.textContent = data.output || 'No output';
+      } catch (error) {
+        outputEl.textContent = 'Error: ' + error.message;
+      }
+    }
+
+    async function restartGateway() {
+      if (!confirm('Are you sure you want to restart the gateway?')) return;
+
+      try {
+        const response = await fetch('/setup/api/restart', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+          showAlert('Gateway restarted successfully!', 'success');
+          fetchStatus();
+        } else {
+          showAlert(data.error || 'Failed to restart gateway', 'error');
+        }
+      } catch (error) {
+        showAlert('Error: ' + error.message, 'error');
+      }
+    }
+
+    async function resetSetup() {
+      if (!confirm('Are you sure you want to reset all configuration? This will stop the gateway and remove all settings.')) return;
+
+      try {
+        const response = await fetch('/setup/api/reset', { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+          showAlert('Configuration reset. Please set up again.', 'success');
+          statusCard.classList.add('hidden');
+          isConfigured = false;
+          fetchStatus();
+        } else {
+          showAlert(data.error || 'Failed to reset configuration', 'error');
+        }
+      } catch (error) {
+        showAlert('Error: ' + error.message, 'error');
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideAlert();
+
+      const authProvider = document.getElementById('authProvider').value;
+      const authValue = document.getElementById('authValue').value;
+
+      // Validation
+      if (!authProvider) {
+        showAlert('Please select an authentication method', 'error');
+        return;
+      }
+
+      const selectedOption = document.getElementById('authProvider').selectedOptions[0];
+      const type = selectedOption.dataset.type;
+
+      if (type !== 'oauth' && !authValue) {
+        showAlert('Please enter your API key or token', 'error');
+        return;
+      }
+
+      setLoading(true);
+
+      const formData = {
+        authProvider,
+        authValue: type === 'oauth' ? 'oauth-pending' : authValue,
+        model: document.getElementById('model').value,
+        telegramToken: document.getElementById('telegramToken').value,
+        discordToken: document.getElementById('discordToken').value,
+        slackToken: document.getElementById('slackToken').value
+      };
+
+      try {
+        const response = await fetch('/setup/api/run', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          showAlert('Setup complete! Redirecting...', 'success');
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 2000);
+        } else {
+          showAlert(result.error || 'Setup failed', 'error');
+          setLoading(false);
+        }
+      } catch (error) {
+        showAlert('Network error: ' + error.message, 'error');
+        setLoading(false);
+      }
+    });
+
+    // Initialize
+    fetchStatus();
+  </script>
+</body>
+</html>

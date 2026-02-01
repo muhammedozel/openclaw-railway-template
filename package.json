@@ -1,7 +1,7 @@
 {
   "name": "openclaw-railway-template",
-  "version": "1.0.0",
-  "description": "🦞 OpenClaw Railway Template - 1-click deploy with setup wizard",
+  "version": "2.0.0",
+  "description": "OpenClaw Railway Template - 1-click deploy with setup wizard, Web TUI, and 20+ auth providers",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
@@ -13,16 +13,20 @@
     "ai-assistant",
     "telegram",
     "discord",
-    "whatsapp"
+    "slack",
+    "oauth",
+    "web-tui"
   ],
-  "author": "Muhammed Özel",
+  "author": "Muhammed Ozel",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.21.2",
-    "http-proxy-middleware": "^3.0.3",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "http-proxy": "^1.18.1",
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=22.0.0"
-  }
+  },
+  "packageManager": "pnpm@9.15.0"
 }
