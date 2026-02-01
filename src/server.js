@@ -530,25 +530,46 @@ app.get("/setup", requireSetupAuth, (req, res) => {
 app.get("/setup/api/status", requireSetupAuth, async (req, res) => {
   const info = await getOpenclawInfo().catch(() => ({ version: "unknown", channelsHelp: "" }));
 
+  // Convert AUTH_GROUPS to arjunkomath format
+  const authGroupsArray = Object.entries(AUTH_GROUPS).map(([key, group]) => ({
+    value: key,
+    label: group.name,
+    hint: "",
+    options: group.providers.map(p => ({
+      value: p.id,
+      label: p.name,
+      hint: p.description || p.placeholder || ""
+    }))
+  }));
+
   res.json({
-    setupComplete: isConfigured(),
+    configured: isConfigured(),
+    setupComplete: isConfigured(), // Keep for backward compatibility
     gatewayRunning: gatewayProc !== null,
     stateDir: STATE_DIR,
     workspaceDir: WORKSPACE_DIR,
-    authGroups: AUTH_GROUPS,
+    authGroups: authGroupsArray,
     models: MODEL_OPTIONS,
     openclawVersion: info.version,
-    channelsHelp: info.channelsHelp,
-    enableWebTui: ENABLE_WEB_TUI,
+    channelsAddHelp: info.channelsHelp,
+    tuiEnabled: ENABLE_WEB_TUI,
+    enableWebTui: ENABLE_WEB_TUI, // Keep for backward compatibility
   });
 });
 
 app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
   try {
-    const { authProvider, authValue, model, telegramToken, discordToken, slackToken } = req.body;
+    // Support both old and new parameter names
+    const authProvider = req.body.authChoice || req.body.authProvider;
+    const authValue = req.body.authSecret || req.body.authValue;
+    const model = req.body.model;
+    const telegramToken = req.body.telegramToken;
+    const discordToken = req.body.discordToken;
+    const slackBotToken = req.body.slackBotToken || req.body.slackToken;
+    const slackAppToken = req.body.slackAppToken;
 
     if (!authProvider || !authValue) {
-      return res.status(400).json({ error: "Auth provider and value are required" });
+      return res.status(400).json({ ok: false, error: "Auth provider and value are required" });
     }
 
     // Find auth provider config
@@ -562,7 +583,7 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
     }
 
     if (!providerConfig) {
-      return res.status(400).json({ error: "Invalid auth provider" });
+      return res.status(400).json({ ok: false, error: "Invalid auth provider" });
     }
 
     // Create config
@@ -575,7 +596,7 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
 
     if (telegramToken) config.channels.telegram = { botToken: telegramToken };
     if (discordToken) config.channels.discord = { token: discordToken };
-    if (slackToken) config.channels.slack = { token: slackToken };
+    if (slackBotToken) config.channels.slack = { botToken: slackBotToken, appToken: slackAppToken };
 
     // Ensure directories exist
     fs.mkdirSync(STATE_DIR, { recursive: true });
@@ -592,10 +613,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
     // Start gateway
     await startGateway();
 
-    res.json({ success: true, message: "Setup complete! Gateway started." });
+    res.json({ ok: true, success: true, output: "Setup complete! Gateway started." });
   } catch (error) {
     console.error("[setup] Error:", error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ ok: false, success: false, output: error.message, error: error.message });
   }
 });
 
