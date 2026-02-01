@@ -386,8 +386,9 @@ async function startGateway() {
       // Write gateway config so Dashboard can authenticate
       try {
         await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.mode", "local"]));
+        await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.mode", "token"]));
         await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]));
-        console.log("[gateway] Config written (mode=local, token set)");
+        console.log("[gateway] Config written (mode=local, auth.mode=token, token set)");
       } catch (err) {
         console.error("[gateway] Failed to write config:", err.message);
       }
