@@ -2,27 +2,6 @@
 
 Deploy OpenClaw to Railway with a single click. Built from source with setup wizard, Web TUI, export/import backup, OAuth support, and 20+ auth providers.
 
-## Quick Deploy
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new?repo=https://github.com/muhammedozel/openclaw-railway-template)
-
-### One-Click Deploy
-1. Click the "Deploy on Railway" button above
-2. Set `SETUP_PASSWORD` environment variable
-3. Railway will automatically generate a public URL
-4. Visit `https://your-app.up.railway.app/setup` to configure
-
-### Manual Deploy
-1. Fork this repository
-2. Create a new project on [Railway](https://railway.app)
-3. Connect your GitHub repo
-4. Add environment variables:
-   - `SETUP_PASSWORD` (required)
-5. Go to **Settings → Networking → Public Networking → Generate Domain**
-6. Visit your public URL + `/setup`
-
-> **Note:** The deploy button uses a Railway Template with automatic domain generation. For manual deploys, you must generate the domain manually in the Networking settings.
-
 ## Features
 
 - **Source Build** - OpenClaw built from GitHub source (more reliable than npm)
@@ -214,13 +193,6 @@ docker build -t openclaw-railway .
 # Build with specific OpenClaw version
 docker build --build-arg OPENCLAW_GIT_REF=v1.0.0 -t openclaw-railway .
 ```
-
-## Credits
-
-This template combines the best features from:
-- [arjunkomath/openclaw-railway-template](https://github.com/arjunkomath/openclaw-railway-template) - Web TUI
-- [codetitlan/openclaw-railway-template](https://github.com/codetitlan/openclaw-railway-template) - Source build, Homebrew
-- [vignesh07/clawdbot-railway-template](https://github.com/vignesh07/clawdbot-railway-template) - Export/Import
 
 ## License
 
