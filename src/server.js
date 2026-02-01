@@ -335,13 +335,17 @@ async function startGateway() {
     console.error("[gateway] Doctor failed (continuing anyway):", err.message);
   }
 
-  // Set gateway.mode BEFORE starting gateway (required for gateway to start)
+  // Set ALL gateway config BEFORE starting gateway
   try {
-    console.log("[gateway] Setting gateway.mode=local...");
+    console.log("[gateway] Setting gateway config...");
     await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.mode", "local"]));
-    console.log("[gateway] gateway.mode set to local");
+    await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.bind", "0.0.0.0"]));
+    await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.mode", "token"]));
+    await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]));
+    await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.remote.token", OPENCLAW_GATEWAY_TOKEN]));
+    console.log("[gateway] Config set (mode=local, bind=0.0.0.0, auth.mode=token, tokens set)");
   } catch (err) {
-    console.error("[gateway] Failed to set gateway.mode:", err.message);
+    console.error("[gateway] Failed to set gateway config:", err.message);
   }
 
   gatewayStarting = (async () => {
@@ -382,16 +386,7 @@ async function startGateway() {
 
     const ready = await waitForGatewayReady();
     if (ready) {
-      console.log("[gateway] Ready");
-      // Write gateway config so Dashboard can authenticate
-      try {
-        await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.mode", "local"]));
-        await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.mode", "token"]));
-        await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]));
-        console.log("[gateway] Config written (mode=local, auth.mode=token, token set)");
-      } catch (err) {
-        console.error("[gateway] Failed to write config:", err.message);
-      }
+      console.log("[gateway] Ready and accepting connections");
     } else {
       console.error("[gateway] Failed to become ready within timeout");
       if (gatewayProc) {
