@@ -40,6 +40,13 @@
       showPairingModal: false,
       isReady: false,
       tuiEnabled: false,
+      // New features
+      gatewayRunning: false,
+      activeTab: 'tools',
+      configContent: '',
+      consoleCmd: 'openclaw.doctor',
+      consoleArg: '',
+      showConfigEditor: false,
 
       get currentGroup() {
         return this.authGroups.find(g => g.value === this.selectedGroup);
@@ -64,6 +71,7 @@
         try {
           const j = await this.httpJson('/setup/api/status');
           this.configured = j.configured;
+          this.gatewayRunning = j.gatewayRunning || false;
           this.openclawVersion = j.openclawVersion || '';
           this.tuiEnabled = j.tuiEnabled || false;
           this.status = j.configured ? 'Configured - open /openclaw' : 'Not configured - run setup below';
@@ -218,6 +226,111 @@
         } finally {
           this.loading = false;
         }
+      },
+
+      // Gateway Restart
+      async restartGateway() {
+        this.log = 'Restarting gateway...\n';
+        this.loading = true;
+        try {
+          const res = await fetch('/setup/api/restart', { method: 'POST', credentials: 'same-origin' });
+          const j = await res.json();
+          this.log += j.message || JSON.stringify(j) + '\n';
+          await this.refreshStatus();
+        } catch (e) {
+          this.log += 'Error: ' + String(e) + '\n';
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      // Export Backup
+      exportBackup() {
+        window.location.href = '/setup/export';
+      },
+
+      // Import Backup
+      async importBackup(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        this.log = 'Importing backup...\n';
+        this.loading = true;
+
+        try {
+          const res = await fetch('/setup/import', {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: file
+          });
+          const text = await res.text();
+          this.log += text + '\n';
+          await this.refreshStatus();
+        } catch (e) {
+          this.log += 'Error: ' + String(e) + '\n';
+        } finally {
+          this.loading = false;
+          event.target.value = '';
+        }
+      },
+
+      // Config Editor
+      async loadConfig() {
+        this.loading = true;
+        try {
+          const j = await this.httpJson('/setup/api/config');
+          this.configContent = j.content || '';
+          this.showConfigEditor = true;
+        } catch (e) {
+          this.log += 'Error loading config: ' + String(e) + '\n';
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      async saveConfig() {
+        this.loading = true;
+        try {
+          const res = await fetch('/setup/api/config', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ content: this.configContent })
+          });
+          const j = await res.json();
+          if (j.ok) {
+            this.log += '✓ Config saved and gateway restarted\n';
+            this.showConfigEditor = false;
+            await this.refreshStatus();
+          } else {
+            this.log += '✗ Error: ' + (j.error || 'Unknown error') + '\n';
+          }
+        } catch (e) {
+          this.log += 'Error: ' + String(e) + '\n';
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      // Console Commands
+      async runConsole() {
+        this.log = 'Running ' + this.consoleCmd + '...\n';
+        this.loading = true;
+        try {
+          const res = await fetch('/setup/api/console', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ cmd: this.consoleCmd, arg: this.consoleArg })
+          });
+          const j = await res.json();
+          this.log += j.output || JSON.stringify(j) + '\n';
+          await this.refreshStatus();
+        } catch (e) {
+          this.log += 'Error: ' + String(e) + '\n';
+        } finally {
+          this.loading = false;
+        }
       }
     }));
   });
@@ -256,11 +369,32 @@
     </div>
 
     <div x-show="isReady && configured" x-cloak>
+      <!-- Quick Status Bars -->
+      <div class="grid grid-cols-2 gap-3 mb-6">
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 flex items-center justify-between">
+          <span class="text-sm text-neutral-500">Gateway</span>
+          <span class="text-sm font-medium px-2 py-0.5 rounded" :class="gatewayRunning ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'" x-text="gatewayRunning ? 'Running' : 'Stopped'"></span>
+        </div>
+        <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-lg p-3 flex items-center justify-between">
+          <span class="text-sm text-neutral-500">Config</span>
+          <span class="text-sm font-medium px-2 py-0.5 rounded" :class="configured ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'" x-text="configured ? 'Configured' : 'Not Set'"></span>
+        </div>
+      </div>
+
       <div class="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl p-6 shadow-sm dark:shadow-none">
         <h2 class="text-lg font-semibold mb-1">Setup Complete</h2>
         <p class="text-neutral-500 text-sm mb-6">Your OpenClaw instance is configured and running</p>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <!-- Tab Navigation -->
+        <div class="flex gap-2 mb-6 border-b border-neutral-200 dark:border-neutral-800 pb-3">
+          <button @click="activeTab = 'tools'" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" :class="activeTab === 'tools' ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'">Tools</button>
+          <button @click="activeTab = 'backup'" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" :class="activeTab === 'backup' ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'">Backup</button>
+          <button @click="activeTab = 'console'" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" :class="activeTab === 'console' ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'">Console</button>
+          <button @click="activeTab = 'config'; loadConfig()" class="px-4 py-2 rounded-lg text-sm font-medium transition-colors" :class="activeTab === 'config' ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-900 dark:text-white' : 'text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'">Config</button>
+        </div>
+
+        <!-- Tools Tab -->
+        <div x-show="activeTab === 'tools'" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div class="flex flex-col bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
             <div class="flex items-center gap-3 mb-3">
               <div class="w-10 h-10 bg-amber-500/20 rounded-lg flex items-center justify-center">
@@ -303,9 +437,92 @@
               Reset Setup
             </button>
           </div>
+
+          <!-- Gateway Restart -->
+          <div class="flex flex-col bg-purple-50 dark:bg-purple-900/20 rounded-xl p-4 border border-purple-200 dark:border-purple-800">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              </div>
+              <span class="font-medium text-purple-700 dark:text-purple-300">Restart Gateway</span>
+            </div>
+            <p class="text-sm text-purple-600/80 dark:text-purple-400/70 flex-1">Stop and restart the OpenClaw gateway process.</p>
+            <button @click="restartGateway()" :disabled="loading" class="w-full mt-4 bg-purple-100 dark:bg-purple-900/40 hover:bg-purple-200 dark:hover:bg-purple-900/60 disabled:opacity-50 disabled:cursor-not-allowed text-purple-700 dark:text-purple-300 px-4 py-2.5 rounded-lg font-medium border border-purple-300 dark:border-purple-700 transition-colors">
+              Restart Gateway
+            </button>
+          </div>
+        </div>
         </div>
 
-        <div x-show="log" class="bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 font-mono text-xs text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap max-h-64 overflow-y-auto" x-text="log"></div>
+        <!-- Backup Tab -->
+        <div x-show="activeTab === 'backup'" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex flex-col bg-teal-50 dark:bg-teal-900/20 rounded-xl p-4 border border-teal-200 dark:border-teal-800">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-teal-500/20 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                </div>
+                <span class="font-medium text-teal-700 dark:text-teal-300">Export Backup</span>
+              </div>
+              <p class="text-sm text-teal-600/80 dark:text-teal-400/70 flex-1">Download a backup of your config and workspace as a tar.gz file.</p>
+              <button @click="exportBackup()" class="w-full mt-4 bg-teal-100 dark:bg-teal-900/40 hover:bg-teal-200 dark:hover:bg-teal-900/60 text-teal-700 dark:text-teal-300 px-4 py-2.5 rounded-lg font-medium border border-teal-300 dark:border-teal-700 transition-colors">
+                Export Backup
+              </button>
+            </div>
+
+            <div class="flex flex-col bg-orange-50 dark:bg-orange-900/20 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                </div>
+                <span class="font-medium text-orange-700 dark:text-orange-300">Import Backup</span>
+              </div>
+              <p class="text-sm text-orange-600/80 dark:text-orange-400/70 flex-1">Restore from a backup file. Gateway will restart after import.</p>
+              <label class="w-full mt-4 bg-orange-100 dark:bg-orange-900/40 hover:bg-orange-200 dark:hover:bg-orange-900/60 text-orange-700 dark:text-orange-300 px-4 py-2.5 rounded-lg font-medium border border-orange-300 dark:border-orange-700 transition-colors cursor-pointer text-center">
+                <span x-show="!loading">Choose File</span>
+                <span x-show="loading">Importing...</span>
+                <input type="file" accept=".tar.gz,.tgz" @change="importBackup($event)" class="hidden" :disabled="loading">
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Console Tab -->
+        <div x-show="activeTab === 'console'" class="space-y-4">
+          <div class="flex gap-3">
+            <select x-model="consoleCmd" class="flex-1 bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-red-500">
+              <option value="gateway.start">Gateway Start</option>
+              <option value="gateway.stop">Gateway Stop</option>
+              <option value="gateway.restart">Gateway Restart</option>
+              <option value="openclaw.status">OpenClaw Status</option>
+              <option value="openclaw.health">OpenClaw Health</option>
+              <option value="openclaw.doctor">OpenClaw Doctor</option>
+              <option value="openclaw.version">OpenClaw Version</option>
+              <option value="openclaw.logs.tail">OpenClaw Logs (tail)</option>
+              <option value="openclaw.config.get">OpenClaw Config Get</option>
+            </select>
+            <input x-model="consoleArg" type="text" placeholder="Argument (optional)" class="w-40 bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-red-500">
+            <button @click="runConsole()" :disabled="loading" class="bg-neutral-800 dark:bg-neutral-700 hover:bg-neutral-900 dark:hover:bg-neutral-600 disabled:opacity-50 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+              Run
+            </button>
+          </div>
+        </div>
+
+        <!-- Config Tab -->
+        <div x-show="activeTab === 'config'" class="space-y-4">
+          <textarea x-model="configContent" class="w-full h-64 bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-lg px-4 py-3 text-sm font-mono focus:outline-none focus:border-red-500 resize-y" placeholder="Loading config..."></textarea>
+          <div class="flex gap-3">
+            <button @click="loadConfig()" :disabled="loading" class="bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 disabled:opacity-50 text-neutral-700 dark:text-neutral-300 px-4 py-2.5 rounded-lg font-medium transition-colors">
+              Reload
+            </button>
+            <button @click="saveConfig()" :disabled="loading" class="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-medium transition-colors">
+              Save & Restart
+            </button>
+          </div>
+        </div>
+
+        <!-- Log Output -->
+        <div x-show="log" class="mt-6 bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 rounded-lg p-4 font-mono text-xs text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap max-h-64 overflow-y-auto" x-text="log"></div>
       </div>
     </div>
 
