@@ -95,8 +95,9 @@ COPY src ./src
 RUN mkdir -p /data/.openclaw /data/workspace
 
 # Create non-root user for security
-RUN groupadd -r openclaw && useradd -r -g openclaw -G linuxbrew openclaw
-RUN chown -R openclaw:openclaw /app /data
+RUN groupadd -r openclaw && useradd -r -g openclaw -G linuxbrew -m openclaw
+RUN mkdir -p /home/openclaw/.openclaw
+RUN chown -R openclaw:openclaw /app /data /home/openclaw/.openclaw
 
 # Environment defaults
 ENV PORT=8080
