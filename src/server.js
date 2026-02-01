@@ -326,6 +326,15 @@ async function startGateway() {
 
   console.log("[gateway] Starting OpenClaw gateway...");
 
+  // Fix config before starting gateway
+  try {
+    console.log("[gateway] Running doctor --fix to repair config...");
+    await runCmd(OPENCLAW_NODE, clawArgs(["doctor", "--fix"]));
+    console.log("[gateway] Config repaired");
+  } catch (err) {
+    console.error("[gateway] Doctor failed (continuing anyway):", err.message);
+  }
+
   gatewayStarting = (async () => {
     const args = clawArgs([
       "gateway",
