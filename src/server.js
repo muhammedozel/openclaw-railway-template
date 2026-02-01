@@ -365,12 +365,13 @@ async function startGateway() {
     const ready = await waitForGatewayReady();
     if (ready) {
       console.log("[gateway] Ready");
-      // Write gateway token to OpenClaw config so Dashboard can authenticate
+      // Write gateway config so Dashboard can authenticate
       try {
+        await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.mode", "local"]));
         await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]));
-        console.log("[gateway] Token written to config");
+        console.log("[gateway] Config written (mode=local, token set)");
       } catch (err) {
-        console.error("[gateway] Failed to write token to config:", err.message);
+        console.error("[gateway] Failed to write config:", err.message);
       }
     } else {
       console.error("[gateway] Failed to become ready within timeout");
