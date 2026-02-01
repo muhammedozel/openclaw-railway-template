@@ -5,6 +5,104 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenClaw Setup</title>
   <link rel="stylesheet" href="/styles.css">
+  <style>
+    .backup-section {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    .backup-section .btn {
+      flex: 1;
+      min-width: 140px;
+    }
+    .config-editor {
+      margin-top: 16px;
+    }
+    .config-editor textarea {
+      width: 100%;
+      height: 200px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      color: #e0e0e0;
+      resize: vertical;
+    }
+    .config-editor textarea:focus {
+      outline: none;
+      border-color: #ff6b35;
+    }
+    .console-section {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .console-section select {
+      flex: 1;
+      min-width: 200px;
+    }
+    .console-section input {
+      flex: 1;
+      min-width: 120px;
+    }
+    .version-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      background: rgba(255, 107, 53, 0.15);
+      color: #ff6b35;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+    }
+    .file-input-wrapper input[type=file] {
+      font-size: 100px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }
+    .tab-btn {
+      padding: 8px 16px;
+      background: transparent;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      font-size: 14px;
+      border-radius: 6px 6px 0 0;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .tab-btn.active {
+      color: #ff6b35;
+      background: rgba(255, 107, 53, 0.1);
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -12,6 +110,7 @@
       <div class="logo">&#x1F99E;</div>
       <h1>OpenClaw Setup</h1>
       <p class="subtitle">Configure your personal AI assistant</p>
+      <span id="versionBadge" class="version-badge hidden"></span>
     </div>
 
     <div id="alert" class="alert hidden"></div>
@@ -32,18 +131,87 @@
           <span id="statusGateway" class="status-value">-</span>
         </div>
       </div>
-      <div class="button-group">
-        <button type="button" class="btn btn-secondary" onclick="runDoctor()">
-          <span class="btn-icon">&#x1FA7A;</span> Run Doctor
-        </button>
-        <button type="button" class="btn btn-secondary" onclick="restartGateway()">
-          <span class="btn-icon">&#x1F504;</span> Restart Gateway
-        </button>
-        <button type="button" class="btn btn-danger" onclick="resetSetup()">
-          <span class="btn-icon">&#x1F5D1;</span> Reset Configuration
-        </button>
+
+      <!-- Tabs for Management -->
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('actions')">Actions</button>
+        <button class="tab-btn" onclick="switchTab('backup')">Backup</button>
+        <button class="tab-btn" onclick="switchTab('console')">Console</button>
+        <button class="tab-btn" onclick="switchTab('config')">Config</button>
       </div>
-      <div id="doctorOutput" class="code-output hidden"></div>
+
+      <!-- Actions Tab -->
+      <div id="tab-actions" class="tab-content active">
+        <div class="button-group">
+          <button type="button" class="btn btn-secondary" onclick="runDoctor()">
+            <span class="btn-icon">&#x1FA7A;</span> Run Doctor
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="restartGateway()">
+            <span class="btn-icon">&#x1F504;</span> Restart Gateway
+          </button>
+          <button type="button" class="btn btn-danger" onclick="resetSetup()">
+            <span class="btn-icon">&#x1F5D1;</span> Reset Configuration
+          </button>
+        </div>
+        <div id="doctorOutput" class="code-output hidden"></div>
+      </div>
+
+      <!-- Backup Tab -->
+      <div id="tab-backup" class="tab-content">
+        <p class="help-text" style="margin-bottom: 16px;">Export or import your OpenClaw configuration and workspace data.</p>
+        <div class="backup-section">
+          <a href="/setup/export" class="btn btn-secondary" target="_blank">
+            <span class="btn-icon">&#x1F4E5;</span> Download Backup
+          </a>
+          <div class="file-input-wrapper">
+            <button class="btn btn-secondary">
+              <span class="btn-icon">&#x1F4E4;</span> Import Backup
+            </button>
+            <input type="file" id="importFile" accept=".tar.gz,application/gzip" onchange="handleImport(this)">
+          </div>
+        </div>
+        <div id="importOutput" class="code-output hidden"></div>
+      </div>
+
+      <!-- Console Tab -->
+      <div id="tab-console" class="tab-content">
+        <p class="help-text" style="margin-bottom: 16px;">Run safe commands for debugging and recovery.</p>
+        <div class="console-section">
+          <select id="consoleCmd">
+            <option value="gateway.restart">gateway.restart</option>
+            <option value="gateway.stop">gateway.stop</option>
+            <option value="gateway.start">gateway.start</option>
+            <option value="openclaw.status">openclaw status</option>
+            <option value="openclaw.health">openclaw health</option>
+            <option value="openclaw.doctor">openclaw doctor</option>
+            <option value="openclaw.logs.tail">openclaw logs --tail N</option>
+            <option value="openclaw.config.get">openclaw config get</option>
+            <option value="openclaw.version">openclaw --version</option>
+          </select>
+          <input type="text" id="consoleArg" placeholder="Optional arg">
+          <button class="btn btn-secondary" onclick="runConsoleCmd()">
+            <span class="btn-icon">&#x25B6;</span> Run
+          </button>
+        </div>
+        <div id="consoleOutput" class="code-output hidden"></div>
+      </div>
+
+      <!-- Config Tab -->
+      <div id="tab-config" class="tab-content">
+        <p class="help-text" style="margin-bottom: 16px;">Edit the raw configuration file. Saving will create a backup and restart the gateway.</p>
+        <div class="config-editor">
+          <textarea id="configText" placeholder="Loading configuration..."></textarea>
+        </div>
+        <div class="button-group" style="margin-top: 12px;">
+          <button class="btn btn-secondary" onclick="loadConfig()">
+            <span class="btn-icon">&#x1F504;</span> Reload
+          </button>
+          <button class="btn btn-primary" onclick="saveConfig()">
+            <span class="btn-icon">&#x1F4BE;</span> Save
+          </button>
+        </div>
+        <div id="configOutput" class="code-output hidden"></div>
+      </div>
     </div>
 
     <form id="setupForm">
@@ -139,7 +307,7 @@
 
     <!-- Footer Links -->
     <div class="footer">
-      <a href="/tui" class="footer-link">
+      <a href="/tui" class="footer-link" id="tuiLink">
         <span class="footer-icon">&#x1F4BB;</span>
         Web Terminal
       </a>
@@ -147,7 +315,7 @@
         <span class="footer-icon">&#x2764;</span>
         Health Check
       </a>
-      <a href="https://github.com/anthropics/openclaw" class="footer-link" target="_blank">
+      <a href="https://github.com/openclaw/openclaw" class="footer-link" target="_blank">
         <span class="footer-icon">&#x1F4DA;</span>
         Documentation
       </a>
@@ -158,6 +326,7 @@
     let authGroups = {};
     let models = [];
     let isConfigured = false;
+    let enableWebTui = true;
 
     const form = document.getElementById('setupForm');
     const alertEl = document.getElementById('alert');
@@ -183,6 +352,18 @@
       btnLoading.classList.toggle('active', loading);
     }
 
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+
+      if (tabName === 'config') {
+        loadConfig();
+      }
+    }
+
     async function fetchStatus() {
       try {
         const response = await fetch('/setup/api/status');
@@ -191,6 +372,18 @@
         authGroups = data.authGroups || {};
         models = data.models || [];
         isConfigured = data.setupComplete;
+        enableWebTui = data.enableWebTui !== false;
+
+        // Update version badge
+        if (data.openclawVersion) {
+          const versionBadge = document.getElementById('versionBadge');
+          versionBadge.textContent = `v${data.openclawVersion}`;
+          versionBadge.classList.remove('hidden');
+        }
+
+        // Update TUI link visibility
+        const tuiLink = document.getElementById('tuiLink');
+        tuiLink.style.display = enableWebTui ? 'flex' : 'none';
 
         // Populate auth groups dropdown
         const authGroupSelect = document.getElementById('authGroup');
@@ -217,8 +410,8 @@
           statusCard.classList.remove('hidden');
           document.getElementById('statusSetup').textContent = 'Complete';
           document.getElementById('statusSetup').className = 'status-value status-ok';
-          document.getElementById('statusGateway').textContent = data.gatewayReady ? 'Running' : 'Starting...';
-          document.getElementById('statusGateway').className = `status-value ${data.gatewayReady ? 'status-ok' : 'status-warning'}`;
+          document.getElementById('statusGateway').textContent = data.gatewayRunning ? 'Running' : 'Starting...';
+          document.getElementById('statusGateway').className = `status-value ${data.gatewayRunning ? 'status-ok' : 'status-warning'}`;
         }
 
         return data;
@@ -295,7 +488,6 @@
           authLabel.textContent = 'Credential';
         }
 
-        // Set help text based on provider
         const providerId = selectedOption.value;
         if (providerId === 'anthropic-api') {
           authHelp.innerHTML = 'Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>';
@@ -314,8 +506,6 @@
     function startOAuth() {
       const provider = document.getElementById('authProvider').value;
       showAlert('OAuth flow is not yet implemented for this provider. Please use API key authentication.', 'warning');
-      // TODO: Implement OAuth flow
-      // window.open(`/setup/api/oauth/start?provider=${provider}`, '_blank', 'width=600,height=700');
     }
 
     async function runDoctor() {
@@ -370,6 +560,107 @@
       }
     }
 
+    async function handleImport(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const outputEl = document.getElementById('importOutput');
+      outputEl.classList.remove('hidden');
+      outputEl.textContent = 'Uploading and importing backup...';
+
+      try {
+        const response = await fetch('/setup/import', {
+          method: 'POST',
+          body: file,
+          headers: {
+            'Content-Type': 'application/gzip'
+          }
+        });
+
+        const text = await response.text();
+        outputEl.textContent = text;
+
+        if (response.ok) {
+          showAlert('Backup imported successfully!', 'success');
+          fetchStatus();
+        }
+      } catch (error) {
+        outputEl.textContent = 'Error: ' + error.message;
+      }
+
+      input.value = '';
+    }
+
+    async function runConsoleCmd() {
+      const cmd = document.getElementById('consoleCmd').value;
+      const arg = document.getElementById('consoleArg').value;
+      const outputEl = document.getElementById('consoleOutput');
+
+      outputEl.classList.remove('hidden');
+      outputEl.textContent = `Running ${cmd}...`;
+
+      try {
+        const response = await fetch('/setup/api/console', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cmd, arg })
+        });
+
+        const data = await response.json();
+        outputEl.textContent = data.output || (data.ok ? 'OK' : data.error);
+      } catch (error) {
+        outputEl.textContent = 'Error: ' + error.message;
+      }
+    }
+
+    async function loadConfig() {
+      const textarea = document.getElementById('configText');
+      const outputEl = document.getElementById('configOutput');
+
+      try {
+        const response = await fetch('/setup/api/config');
+        const data = await response.json();
+
+        if (data.ok) {
+          textarea.value = data.content || '{}';
+        } else {
+          outputEl.classList.remove('hidden');
+          outputEl.textContent = 'Error: ' + data.error;
+        }
+      } catch (error) {
+        outputEl.classList.remove('hidden');
+        outputEl.textContent = 'Error: ' + error.message;
+      }
+    }
+
+    async function saveConfig() {
+      const textarea = document.getElementById('configText');
+      const outputEl = document.getElementById('configOutput');
+      const content = textarea.value;
+
+      outputEl.classList.remove('hidden');
+      outputEl.textContent = 'Saving configuration...';
+
+      try {
+        const response = await fetch('/setup/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content })
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          outputEl.textContent = 'Configuration saved and gateway restarted.';
+          showAlert('Configuration saved successfully!', 'success');
+        } else {
+          outputEl.textContent = 'Error: ' + data.error;
+        }
+      } catch (error) {
+        outputEl.textContent = 'Error: ' + error.message;
+      }
+    }
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideAlert();
@@ -377,7 +668,6 @@
       const authProvider = document.getElementById('authProvider').value;
       const authValue = document.getElementById('authValue').value;
 
-      // Validation
       if (!authProvider) {
         showAlert('Please select an authentication method', 'error');
         return;

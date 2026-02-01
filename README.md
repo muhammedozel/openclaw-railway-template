@@ -1,19 +1,22 @@
-# OpenClaw Railway Template
+# OpenClaw Railway Template v3.0
 
-Deploy OpenClaw to Railway with a single click. Features a setup wizard, 20+ auth providers, Web Terminal UI, and production-ready security.
+Deploy OpenClaw to Railway with a single click. Built from source with setup wizard, Web TUI, export/import backup, and 20+ auth providers.
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/openclaw)
 
 ## Features
 
+- **Source Build** - OpenClaw built from GitHub source (more reliable than npm)
+- **Homebrew Support** - Install additional tools via brew
 - **Setup Wizard** - Web-based configuration UI with auth provider selection
 - **20+ Auth Providers** - Anthropic, OpenAI, Google, OpenRouter, and more
-- **OAuth Support** - Login via Claude CLI, Codex CLI, and other OAuth flows
-- **Web Terminal (TUI)** - Browser-based terminal access to OpenClaw
+- **Web Terminal (TUI)** - Browser-based terminal access with xterm.js
+- **Export/Import Backup** - Download and restore your config/workspace
+- **Config Editor** - Edit raw JSON config with automatic backups
+- **Debug Console** - Run safe commands for debugging
 - **Multi-Channel** - Telegram, Discord, and Slack support
 - **Security** - Rate limiting, timing-safe auth, non-root container
 - **Health Checks** - Detailed health endpoint with gateway status
-- **Graceful Shutdown** - Proper signal handling for clean restarts
 
 ## Quick Start
 
@@ -45,7 +48,7 @@ pnpm start
 ### Docker
 
 ```bash
-# Build the image
+# Build the image (includes source build of OpenClaw)
 docker build -t openclaw-railway .
 
 # Run with a volume for persistence
@@ -68,7 +71,11 @@ docker run -p 8080:8080 \
 | `/setup/api/reset` | Reset all configuration |
 | `/setup/api/doctor` | Run openclaw doctor command |
 | `/setup/api/restart` | Restart the gateway |
+| `/setup/api/config` | Get/Set raw config (JSON) |
+| `/setup/api/console` | Run debug commands |
 | `/setup/api/debug` | Debug information |
+| `/setup/export` | Download backup (tar.gz) |
+| `/setup/import` | Upload and restore backup |
 | `/tui` | Web Terminal UI |
 | `/health` | Simple health check |
 
@@ -108,6 +115,10 @@ docker run -p 8080:8080 \
 | `PORT` | No | Server port (default: 8080) |
 | `OPENCLAW_STATE_DIR` | No | Config directory (default: /data/.openclaw) |
 | `OPENCLAW_WORKSPACE_DIR` | No | Workspace directory (default: /data/workspace) |
+| `ENABLE_WEB_TUI` | No | Enable Web Terminal (default: true) |
+| `TUI_IDLE_TIMEOUT_MS` | No | TUI idle timeout (default: 300000) |
+| `TUI_MAX_SESSION_MS` | No | TUI max session (default: 1800000) |
+| `OPENCLAW_TEMPLATE_DEBUG` | No | Enable debug logging (default: false) |
 | `ANTHROPIC_API_KEY` | No | Pre-set Anthropic API key |
 | `OPENAI_API_KEY` | No | Pre-set OpenAI API key |
 | `GOOGLE_API_KEY` | No | Pre-set Google API key |
@@ -118,13 +129,13 @@ docker run -p 8080:8080 \
 ```
 openclaw-railway-template/
 ├── src/
-│   ├── server.js          # Main Express server (HTTP/WS)
+│   ├── server.js          # Express server (HTTP/WS)
 │   └── public/
 │       ├── setup.html     # Setup wizard UI
 │       ├── loading.html   # Gateway loading page
 │       ├── styles.css     # Shared CSS
 │       └── tui.html       # Web Terminal UI
-├── Dockerfile             # Multi-stage build with pnpm
+├── Dockerfile             # Multi-stage source build
 ├── railway.toml           # Railway configuration
 ├── package.json           # Dependencies
 └── .env.example           # Environment template
@@ -132,14 +143,16 @@ openclaw-railway-template/
 
 ### How It Works
 
-1. User deploys to Railway with a volume at `/data`
-2. Express wrapper starts on configured PORT
-3. If not configured, redirects to `/setup`
-4. Setup wizard collects auth credentials and channel tokens
-5. Creates config at `$OPENCLAW_STATE_DIR/openclaw.json`
-6. Starts OpenClaw gateway with health polling
-7. Wrapper proxies all traffic to gateway with auth headers
-8. Web TUI available at `/tui` for terminal access
+1. **Build Stage**: Clones OpenClaw from GitHub and builds from source
+2. **Runtime**: Node.js + Homebrew + Express wrapper
+3. User deploys to Railway with a volume at `/data`
+4. Express wrapper starts on configured PORT
+5. If not configured, redirects to `/setup`
+6. Setup wizard collects auth credentials and channel tokens
+7. Creates config at `$OPENCLAW_STATE_DIR/openclaw.json`
+8. Starts OpenClaw gateway with health polling
+9. Wrapper proxies all traffic to gateway with auth headers
+10. Web TUI available at `/tui` for terminal access
 
 ## Security Features
 
@@ -147,16 +160,32 @@ openclaw-railway-template/
 - **Timing-Safe Password Comparison**: Prevents timing attacks
 - **Gateway Token Persistence**: Secure file-based token storage
 - **Non-Root Container**: Runs as unprivileged user
-- **CORS Headers**: Configurable cross-origin access
+- **Source Build**: No npm supply chain concerns
 
 ## Web Terminal (TUI)
 
 Access OpenClaw via browser at `/tui`:
 
-- **Idle Timeout**: 5 minutes of inactivity
-- **Max Session**: 30 minutes per session
+- **Enabled by Default**: Set `ENABLE_WEB_TUI=false` to disable
+- **Idle Timeout**: 5 minutes of inactivity (configurable)
+- **Max Session**: 30 minutes per session (configurable)
 - **Single Session**: Only one active session at a time
 - **Full Terminal**: xterm.js with 256 colors
+
+## Backup & Restore
+
+### Export
+1. Go to `/setup`
+2. Click "Backup" tab
+3. Click "Download Backup"
+4. Save the `.tar.gz` file
+
+### Import
+1. Go to `/setup`
+2. Click "Backup" tab
+3. Click "Import Backup"
+4. Select your backup file
+5. Gateway will restart automatically
 
 ## Development
 
@@ -170,9 +199,16 @@ pnpm dev
 # Build Docker image
 docker build -t openclaw-railway .
 
-# Run tests
-pnpm test
+# Build with specific OpenClaw version
+docker build --build-arg OPENCLAW_GIT_REF=v1.0.0 -t openclaw-railway .
 ```
+
+## Credits
+
+This template combines the best features from:
+- [arjunkomath/openclaw-railway-template](https://github.com/arjunkomath/openclaw-railway-template) - Web TUI
+- [codetitlan/openclaw-railway-template](https://github.com/codetitlan/openclaw-railway-template) - Source build, Homebrew
+- [vignesh07/clawdbot-railway-template](https://github.com/vignesh07/clawdbot-railway-template) - Export/Import
 
 ## License
 

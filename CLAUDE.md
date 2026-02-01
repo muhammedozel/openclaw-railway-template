@@ -1,26 +1,26 @@
-# CLAUDE.md - OpenClaw Railway Template
+# CLAUDE.md - OpenClaw Railway Template v3.0
 
 ## Project Overview
 
-Railway deployment template for OpenClaw with setup wizard, 20+ auth providers, Web Terminal UI, and production security.
+Railway deployment template for OpenClaw with source build, setup wizard, Web TUI, export/import backup, 20+ auth providers, and production security.
 
 ## Architecture
 
-- **HTTP/WS Server** (`src/server.js`): Handles setup, proxying, and TUI
-- **Setup Wizard** (`src/public/setup.html`): Web UI for configuration
-- **Web TUI** (`src/public/tui.html`): Browser-based terminal
-- **OpenClaw Gateway**: AI assistant backend (installed globally via npm)
+- **Express Server** (`src/server.js`): Handles setup, proxying, TUI, and backup
+- **Setup Wizard** (`src/public/setup.html`): Web UI for configuration with tabs
+- **Web TUI** (`src/public/tui.html`): Browser-based terminal (xterm.js)
+- **OpenClaw Gateway**: AI assistant backend (built from source)
 
 ## Key Files
 
 ```
-├── Dockerfile              # Multi-stage build with pnpm
+├── Dockerfile              # Multi-stage source build with Homebrew
 ├── railway.toml            # Railway deployment config
-├── package.json            # Dependencies (http-proxy, node-pty, ws)
+├── package.json            # Dependencies (express, http-proxy, node-pty, ws, tar)
 ├── src/
-│   ├── server.js           # Main server (~970 lines)
+│   ├── server.js           # Main Express server (~1170 lines)
 │   └── public/
-│       ├── setup.html      # Setup wizard UI
+│       ├── setup.html      # Setup wizard with tabs (Actions, Backup, Console, Config)
 │       ├── loading.html    # Gateway loading page
 │       ├── styles.css      # Shared styles
 │       └── tui.html        # Web terminal (xterm.js)
@@ -30,16 +30,39 @@ Railway deployment template for OpenClaw with setup wizard, 20+ auth providers, 
 
 ## How It Works
 
-1. User deploys to Railway with volume at `/data`
-2. Container starts HTTP server on PORT (default 8080)
-3. If not configured, redirects to `/setup`
-4. Setup wizard shows 20+ auth providers grouped by vendor
-5. On submit, creates config at `$OPENCLAW_STATE_DIR/openclaw.json`
-6. Starts OpenClaw gateway on port 18789 with health polling
-7. Wrapper proxies all traffic to gateway with Bearer token
-8. Web TUI available at `/tui` for terminal access
+1. **Build Stage**: Docker clones OpenClaw from GitHub, builds with pnpm/bun
+2. **Runtime Stage**: Node.js + Homebrew + Express wrapper
+3. User deploys to Railway with volume at `/data`
+4. Container starts Express server on PORT (default 8080)
+5. If not configured, redirects to `/setup`
+6. Setup wizard shows 20+ auth providers grouped by vendor
+7. On submit, creates config at `$OPENCLAW_STATE_DIR/openclaw.json`
+8. Starts OpenClaw gateway on port 18789 with health polling
+9. Wrapper proxies all traffic to gateway with Bearer token
+10. Web TUI available at `/tui` for terminal access
 
 ## Key Features
+
+### Source Build (New in v3)
+- OpenClaw built from GitHub source (not npm)
+- Avoids missing dist files in npm package
+- Homebrew available for additional tools
+- Build arg `OPENCLAW_GIT_REF` to pin version
+
+### Export/Import Backup (New in v3)
+- Export: Downloads tar.gz of config + workspace
+- Import: Restores from backup, restarts gateway
+- Automatic backup before config edits
+
+### Config Editor (New in v3)
+- Edit raw JSON config in browser
+- Automatic .bak file creation
+- Gateway restart on save
+
+### Debug Console (New in v3)
+- Run safe commands from browser
+- Gateway control (start/stop/restart)
+- OpenClaw commands (status, health, doctor, logs)
 
 ### Security
 - Rate limiting (50 req/min per IP)
@@ -61,6 +84,7 @@ Railway deployment template for OpenClaw with setup wizard, 20+ auth providers, 
 
 ### Web TUI
 - node-pty + xterm.js
+- Enabled by default (ENABLE_WEB_TUI=false to disable)
 - Idle timeout (5 min)
 - Max session (30 min)
 - Single session limit
@@ -75,8 +99,8 @@ pnpm dev           # Start with file watching
 
 ## API Endpoints
 
-- `GET /setup` - Setup wizard (auth required)
-- `GET /setup/healthz` - Detailed health check
+### Setup (auth required)
+- `GET /setup` - Setup wizard
 - `GET /setup/api/status` - Status + auth groups + models
 - `POST /setup/api/run` - Run onboarding
 - `POST /setup/api/reset` - Reset config
@@ -84,7 +108,18 @@ pnpm dev           # Start with file watching
 - `POST /setup/api/restart` - Restart gateway
 - `POST /setup/api/pairing/approve` - Approve pairing
 - `GET /setup/api/debug` - Debug info
-- `GET /tui` - Web terminal (auth required)
+- `GET /setup/api/config` - Get raw config
+- `POST /setup/api/config` - Save raw config
+- `POST /setup/api/console` - Run debug command
+- `GET /setup/export` - Download backup
+- `POST /setup/import` - Upload backup
+
+### Health (no auth)
+- `GET /setup/healthz` - Detailed health check
+- `GET /health` - Simple health check
+
+### Web TUI (auth required)
+- `GET /tui` - Web terminal
 - `WS /tui/ws` - Terminal WebSocket
 
 ## Environment Variables
@@ -96,10 +131,18 @@ Optional:
 - `PORT` - Server port (default: 8080)
 - `OPENCLAW_STATE_DIR` - Config storage (default: /data/.openclaw)
 - `OPENCLAW_WORKSPACE_DIR` - Workspace (default: /data/workspace)
+- `ENABLE_WEB_TUI` - Enable TUI (default: true)
+- `TUI_IDLE_TIMEOUT_MS` - TUI idle timeout (default: 300000)
+- `TUI_MAX_SESSION_MS` - TUI max session (default: 1800000)
+- `OPENCLAW_TEMPLATE_DEBUG` - Debug logging (default: false)
 - `ANTHROPIC_API_KEY` - Pre-set API key
 - `OPENAI_API_KEY` - Pre-set API key
 - `GOOGLE_API_KEY` - Pre-set API key
 - `OPENROUTER_API_KEY` - Pre-set API key
+
+## Docker Build Args
+
+- `OPENCLAW_GIT_REF` - Git ref to build (default: main)
 
 ## Testing
 
@@ -120,3 +163,4 @@ curl http://localhost:8080/setup/healthz
 - Gateway process spawned as child process with health monitoring
 - WebSocket connections proxied to gateway or handled for TUI
 - pnpm used as package manager (corepack enabled in Dockerfile)
+- Homebrew available at /home/linuxbrew/.linuxbrew/bin
