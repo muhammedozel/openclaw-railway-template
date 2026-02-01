@@ -1314,11 +1314,25 @@ server.on("upgrade", async (req, socket, head) => {
 // Web TUI Implementation
 // ============================================================================
 
-function handleTuiConnection(ws, req) {
+async function handleTuiConnection(ws, req) {
   // Check if there's already an active session
   if (tuiSession && tuiSession.ws.readyState === 1) {
     ws.close(1000, "Another session is already active");
     return;
+  }
+
+  // Ensure token is synced to config before spawning TUI
+  try {
+    await runCmd(
+      OPENCLAW_NODE,
+      clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN])
+    );
+    await runCmd(
+      OPENCLAW_NODE,
+      clawArgs(["config", "set", "gateway.remote.token", OPENCLAW_GATEWAY_TOKEN])
+    );
+  } catch (e) {
+    console.error("[tui] Failed to sync gateway token:", e.message);
   }
 
   let ptyProcess;
@@ -1333,6 +1347,7 @@ function handleTuiConnection(ws, req) {
         OPENCLAW_STATE_DIR: STATE_DIR,
         OPENCLAW_WORKSPACE_DIR: WORKSPACE_DIR,
         TERM: "xterm-256color",
+        OPENCLAW_GATEWAY_TOKEN,
       },
     });
   } catch (e) {
