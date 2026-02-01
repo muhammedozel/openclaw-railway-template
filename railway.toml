@@ -8,3 +8,14 @@ healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+[variables]
+PORT = "8080"
+SETUP_PASSWORD = "${{ secret() }}"
+OPENCLAW_GATEWAY_TOKEN = "${{ secret() }}"
+ENABLE_WEB_TUI = "true"
+OPENCLAW_STATE_DIR = "/data/.openclaw"
+OPENCLAW_WORKSPACE_DIR = "/data/workspace"
+OPENCLAW_TEMPLATE_DEBUG = "false"
+TUI_IDLE_TIMEOUT_MS = "300000"
+TUI_MAX_SESSION_MS = "1800000"
