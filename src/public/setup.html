@@ -6,6 +6,49 @@
   <title>OpenClaw Setup</title>
   <link rel="stylesheet" href="/styles.css">
   <style>
+    /* Quick Status Bars */
+    .quick-status-bars {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .quick-status-bar {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+    }
+    .quick-status-label {
+      font-size: 13px;
+      color: #888;
+      font-weight: 500;
+    }
+    .quick-status-value {
+      font-size: 13px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .quick-status-value.status-ok {
+      background: rgba(74, 222, 128, 0.15);
+      color: #4ade80;
+    }
+    .quick-status-value.status-error {
+      background: rgba(248, 113, 113, 0.15);
+      color: #f87171;
+    }
+    .quick-status-value.status-warning {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+    }
+    .quick-status-value.status-unknown {
+      background: rgba(156, 163, 175, 0.15);
+      color: #9ca3af;
+    }
     .backup-section {
       display: flex;
       gap: 12px;
@@ -225,6 +268,18 @@
     </div>
 
     <div id="alert" class="alert hidden"></div>
+
+    <!-- Quick Status Bars (always visible) -->
+    <div class="quick-status-bars">
+      <div class="quick-status-bar">
+        <span class="quick-status-label">Gateway</span>
+        <span id="quickGatewayStatus" class="quick-status-value status-unknown">Unknown</span>
+      </div>
+      <div class="quick-status-bar">
+        <span class="quick-status-label">Config</span>
+        <span id="quickConfigStatus" class="quick-status-value status-unknown">Unknown</span>
+      </div>
+    </div>
 
     <!-- Status Card (shown when already configured) -->
     <div id="statusCard" class="card hidden">
@@ -592,6 +647,29 @@
           option.value = model.value;
           option.textContent = model.label;
           modelSelect.appendChild(option);
+        }
+
+        // Update quick status bars (always visible)
+        const quickGateway = document.getElementById('quickGatewayStatus');
+        const quickConfig = document.getElementById('quickConfigStatus');
+
+        if (data.gatewayRunning) {
+          quickGateway.textContent = 'Running';
+          quickGateway.className = 'quick-status-value status-ok';
+        } else if (isConfigured) {
+          quickGateway.textContent = 'Starting...';
+          quickGateway.className = 'quick-status-value status-warning';
+        } else {
+          quickGateway.textContent = 'Not Started';
+          quickGateway.className = 'quick-status-value status-error';
+        }
+
+        if (isConfigured) {
+          quickConfig.textContent = 'Complete';
+          quickConfig.className = 'quick-status-value status-ok';
+        } else {
+          quickConfig.textContent = 'Not Configured';
+          quickConfig.className = 'quick-status-value status-warning';
         }
 
         // Show status card if configured
