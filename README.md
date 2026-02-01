@@ -1,8 +1,27 @@
-# OpenClaw Railway Template v3.0
+# OpenClaw Railway Template v3.1
 
-Deploy OpenClaw to Railway with a single click. Built from source with setup wizard, Web TUI, export/import backup, and 20+ auth providers.
+Deploy OpenClaw to Railway with a single click. Built from source with setup wizard, Web TUI, export/import backup, OAuth support, and 20+ auth providers.
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/openclaw)
+## Quick Deploy
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new?repo=https://github.com/muhammedozel/openclaw-railway-template)
+
+### One-Click Deploy
+1. Click the "Deploy on Railway" button above
+2. Set `SETUP_PASSWORD` environment variable
+3. Railway will automatically generate a public URL
+4. Visit `https://your-app.up.railway.app/setup` to configure
+
+### Manual Deploy
+1. Fork this repository
+2. Create a new project on [Railway](https://railway.app)
+3. Connect your GitHub repo
+4. Add environment variables:
+   - `SETUP_PASSWORD` (required)
+5. Go to **Settings → Networking → Public Networking → Generate Domain**
+6. Visit your public URL + `/setup`
+
+> **Note:** The deploy button uses a Railway Template with automatic domain generation. For manual deploys, you must generate the domain manually in the Networking settings.
 
 ## Features
 
@@ -19,13 +38,6 @@ Deploy OpenClaw to Railway with a single click. Built from source with setup wiz
 - **Health Checks** - Detailed health endpoint with gateway status
 
 ## Quick Start
-
-### Deploy to Railway
-
-1. Click the "Deploy on Railway" button above
-2. Set `SETUP_PASSWORD` environment variable
-3. Add a volume mounted at `/data` for persistence
-4. Deploy and visit `/setup` to configure
 
 ### Local Development
 
