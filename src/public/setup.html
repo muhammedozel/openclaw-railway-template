@@ -78,6 +78,10 @@
       width: 100%;
       margin-bottom: 8px;
     }
+    .token-paste-input .btn {
+      width: auto;
+      flex-shrink: 0;
+    }
     .device-code-display {
       background: rgba(0, 0, 0, 0.3);
       border-radius: 6px;
@@ -412,7 +416,7 @@
               </p>
               <ol class="help-text" style="margin-left: 16px; margin-bottom: 12px;">
                 <li>Install OpenClaw locally: <code>npm i -g openclaw</code></li>
-                <li>Run: <code>openclaw models auth login</code></li>
+                <li>Run setup wizard: <code>openclaw onboard</code></li>
                 <li>Export your config: <code>tar -czf backup.tar.gz ~/.openclaw</code></li>
                 <li>Upload the backup file below</li>
               </ol>
